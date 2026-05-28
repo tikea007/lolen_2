@@ -7,6 +7,15 @@ const SESSION_KEY = "lolen2_pass";
 
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Hash the PIN with SHA-256 so the raw PIN never leaves the browser
+async function hashPin(pin) {
+    const data = new TextEncoder().encode(pin);
+    const buffer = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, "0"))
+        .join("");
+}
+
 let sessionPass = sessionStorage.getItem(SESSION_KEY) || "";
 let myChart = null;
 let currentItem = null;
@@ -20,14 +29,17 @@ const getTodayKey = () => "lolen2_exp_" + new Date().toDateString();
 
 // ── LOGIN ────────────────────────────────────────────────────────────────────
 async function checkLogin() {
-    const pin = document.getElementById("passInput").value || sessionPass;
+    const inputVal = document.getElementById("passInput").value;
+    // If the user typed a PIN, hash it. If reloading from session, the stored
+    // value is already a SHA-256 hash — use it directly.
+    const pin = inputVal ? await hashPin(inputVal) : sessionPass;
     const btn = document.querySelector("#loginScreen .primary-btn");
     btn.disabled = true;
     btn.textContent = "Logging in…";
 
     const ok = await loadDashboard(pin);
     if (ok) {
-        sessionPass = pin;
+        sessionPass = pin; // pin is always a SHA-256 hash from this point
         sessionStorage.setItem(SESSION_KEY, pin);
         document.getElementById("loginScreen").style.display = "none";
         document.getElementById("mainApp").style.display = "block";
