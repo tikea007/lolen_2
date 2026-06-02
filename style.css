@@ -604,10 +604,15 @@ h2 {
 }
 
 /* PRINT */
+@page {
+    margin: 0;
+    size: auto;
+}
+
 @media print {
     body {
         background: white;
-        padding: 0;
+        padding: 10px 15px;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
@@ -648,15 +653,54 @@ h2 {
         border-top: 1.5px solid #ddd;
         padding-top: 10px;
     }
+
+    h2 {
+        font-size: 24px;
+    }
+
+    .stat-card small {
+        font-size: 16px;
+    }
+
+    .stat-card .val {
+        font-size: 26px;
+    }
+
+    .net-profit-box .label {
+        font-size: 20px;
+    }
+
+    .net-profit-box #netProfit {
+        font-size: 30px;
+    }
+
+    .net-profit-box #netProfitUsd {
+    font-size: 28px !important;
+}
+#expenseDisplayUsd {
+    font-size: 24px !important;
+}
+
+    .expense-total-label {
+        font-size: 18px;
+    }
+
+    .expense-total-val {
+        font-size: 22px;
+    }
+
+    .expense-list-wrap .print-item-row {
+        font-size: 18px;
+    }
 }
 
 .print-item-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 0;
+    gap: 12px;
+    padding: 10px 0;
     border-bottom: 1px dotted #ddd;
-    font-size: 13px;
+    font-size: 20px;
 }
 
 .print-item-name {
@@ -666,20 +710,22 @@ h2 {
 }
 
 .print-item-qty {
-    min-width: 28px;
+    min-width: 40px;
     text-align: right;
     font-weight: 800;
+    font-size: 22px;
     color: #0097a7;
 }
 
 .print-item-eq {
     color: #999;
-    font-size: 12px;
+    font-size: 18px;
 }
 
 .print-item-price {
-    min-width: 90px;
+    min-width: 120px;
     text-align: right;
     font-weight: 800;
+    font-size: 22px;
     color: #222;
 }

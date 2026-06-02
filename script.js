@@ -424,7 +424,7 @@ function printReport() {
     profitPriceSpan.appendChild(br);
 
     const usdSpan = document.createElement("span");
-    usdSpan.style.fontSize = "11px";
+    usdSpan.style.fontSize = "20px";
     usdSpan.style.fontWeight = "600";
     usdSpan.textContent = `($${netUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
     profitPriceSpan.appendChild(usdSpan);
