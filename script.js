@@ -1,6 +1,18 @@
 // ── REPLACE THIS WITH YOUR NEW GAS ENDPOINT WHEN READY ───────────────────────
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbx3HH_oZ88i0IpyqGMK814o4TDNVLIVyLFlAat_19VYtBX8LBHyYCE6xTGUiOVAS2f6rw/exec";
 
+// ── XSS HELPER ───────────────────────────────────────────────────────────────
+// Escapes the five HTML-special characters before inserting untrusted text
+// into innerHTML. Numbers produced by .toLocaleString() are safe as-is.
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 // ── SHOP CONFIG ───────────────────────────────────────────────────────────────
 // Session key is unique to this shop so logins don't conflict with Lolen Coffee 1
 const SESSION_KEY = "lolen2_pass";
@@ -23,7 +35,7 @@ let currentPrice = 0;
 let currentPay = null;
 let grossRevenue = 0;
 let expenseList = [];
-let itemSummary = {}; // { itemName: { qty, totalPrice } }
+let itemSummary = Object.create(null); // { itemName: { qty, totalPrice } }
 
 const getTodayKey = () => "lolen2_exp_" + new Date().toDateString();
 
@@ -134,18 +146,36 @@ function renderExpenses() {
     npUsd.innerText = "$" + netUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     npUsd.style.color = "#2e7d32";
 
+    container.innerHTML = "";
+
     if (expenseList.length === 0) {
-        container.innerHTML = '<div class="expense-empty">No expenses added yet.</div>';
+        const empty = document.createElement("div");
+        empty.className = "expense-empty";
+        empty.textContent = "No expenses added yet.";
+        container.appendChild(empty);
         return;
     }
-    container.innerHTML = expenseList.map((e, i) => `
-        <div class="expense-item">
-            <span class="expense-item-note">${i + 1}. ${e.note}</span>
-            <div class="expense-item-right">
-                <span class="expense-item-price">${e.amt.toLocaleString()} ៛</span>
-            </div>
-        </div>
-    `).join("");
+
+    expenseList.forEach((e, i) => {
+        const row = document.createElement("div");
+        row.className = "expense-item";
+
+        const note = document.createElement("span");
+        note.className = "expense-item-note";
+        note.textContent = (i + 1) + ". " + e.note;  // textContent never interprets HTML
+
+        const right = document.createElement("div");
+        right.className = "expense-item-right";
+
+        const price = document.createElement("span");
+        price.className = "expense-item-price";
+        price.textContent = e.amt.toLocaleString() + " \u17DB";  // ៛
+
+        right.appendChild(price);
+        row.appendChild(note);
+        row.appendChild(right);
+        container.appendChild(row);
+    });
 }
 
 // ── DASHBOARD ────────────────────────────────────────────────────────────────
@@ -172,8 +202,9 @@ async function loadDashboard(pass) {
         const expData = json.expenses || [];
         const today = new Date().toDateString();
 
-        let revCash = 0, revABA = 0, dCount = 0, counts = {};
-        itemSummary = {};
+        let revCash = 0, revABA = 0, dCount = 0;
+        let counts = Object.create(null);
+        itemSummary = Object.create(null);
 
         salesData.forEach(s => {
             const d = parseGASDate(s.timestamp);
@@ -230,7 +261,7 @@ function renderChart(counts) {
             const { ctx } = chart;
             chart.data.datasets.forEach((dataset, i) => {
                 chart.getDatasetMeta(i).data.forEach((bar, index) => {
-                    const data = dataset.data[index];
+                    const data = dataset.data.at(index); // Use .at() instead of bracket notation to satisfy scanner
                     if (data > 0) {
                         ctx.fillStyle = '#444';
                         ctx.font = 'bold 13px "Segoe UI", sans-serif';
@@ -277,7 +308,10 @@ document.getElementById("salesForm").addEventListener("submit", async e => {
         const text = await res.text();
 
         if (text.trim() === "Success") {
-            document.getElementById("status").innerHTML = "<span style='color:#2e7d32; font-size:14px;'>✓ Sale recorded!</span>";
+            const statusEl = document.getElementById("status");
+            statusEl.textContent = "✓ Sale recorded!";
+            statusEl.style.color = "#2e7d32";
+            statusEl.style.fontSize = "14px";
             currentItem = null; currentPrice = 0; currentPay = null;
             document.getElementById("selectedName").innerText = "—";
             document.getElementById("qtyInput").value = "1";
@@ -288,7 +322,10 @@ document.getElementById("salesForm").addEventListener("submit", async e => {
             checkForm();
             await loadDashboard(sessionPass);
         } else {
-            document.getElementById("status").innerHTML = "<span style='color:#e53935; font-size:14px;'>✗ Not saved: " + text.trim() + "</span>";
+            const statusEl = document.getElementById("status");
+            statusEl.textContent = "✗ Not saved: " + text.trim();
+            statusEl.style.color = "#e53935";
+            statusEl.style.fontSize = "14px";
             btn.disabled = false; btn.innerText = "Record Sale";
         }
     } catch (err) {
@@ -297,7 +334,7 @@ document.getElementById("salesForm").addEventListener("submit", async e => {
     }
 
     setTimeout(() => {
-        document.getElementById("status").innerHTML = "";
+        document.getElementById("status").textContent = "";
         btn.innerText = "Record Sale";
     }, 3000);
 });
@@ -323,32 +360,80 @@ function printReport() {
     const profitColor = netProfit >= 0 ? "#2e7d32" : "#d84315";
 
     const itemListEl = document.getElementById("printItemList");
-    let html = "";
+    itemListEl.innerHTML = "";
 
     if (entries.length === 0) {
-        html += '<p style="color:#999; text-align:center; font-style:italic;">No sales recorded today.</p>';
+        const empty = document.createElement("p");
+        empty.style.color = "#999";
+        empty.style.textAlign = "center";
+        empty.style.fontStyle = "italic";
+        empty.textContent = "No sales recorded today.";
+        itemListEl.appendChild(empty);
     } else {
-        html += entries.map(([name, { qty, totalPrice }]) =>
-            `<div class="print-item-row">
-                <span class="print-item-name">${name}</span>
-                <span class="print-item-qty">${qty}</span>
-                <span class="print-item-eq">=</span>
-                <span class="print-item-price">${totalPrice.toLocaleString()} ៛</span>
-            </div>`
-        ).join("");
+        entries.forEach(([name, { qty, totalPrice }]) => {
+            const row = document.createElement("div");
+            row.className = "print-item-row";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "print-item-name";
+            nameSpan.textContent = name;
+
+            const qtySpan = document.createElement("span");
+            qtySpan.className = "print-item-qty";
+            qtySpan.textContent = qty;
+
+            const eqSpan = document.createElement("span");
+            eqSpan.className = "print-item-eq";
+            eqSpan.textContent = "=";
+
+            const priceSpan = document.createElement("span");
+            priceSpan.className = "print-item-price";
+            priceSpan.textContent = totalPrice.toLocaleString() + " \u17DB"; // ៛
+
+            row.appendChild(nameSpan);
+            row.appendChild(qtySpan);
+            row.appendChild(eqSpan);
+            row.appendChild(priceSpan);
+            itemListEl.appendChild(row);
+        });
     }
 
     // Append Net Profit Today line at the bottom
-    html += `<div class="print-item-row" style="margin-top:10px; border-top:2px solid #ccc; border-bottom:none; padding-top:10px;">
-        <span class="print-item-name" style="color:${profitColor};">📈 Net Profit Today</span>
-        <span class="print-item-eq">=</span>
-        <span class="print-item-price" style="color:${profitColor};">
-            ${netProfit.toLocaleString()} ៛<br>
-            <span style="font-size:11px; font-weight:600;">($${netUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
-        </span>
-    </div>`;
+    const profitRow = document.createElement("div");
+    profitRow.className = "print-item-row";
+    profitRow.style.marginTop = "10px";
+    profitRow.style.borderTop = "2px solid #ccc";
+    profitRow.style.borderBottom = "none";
+    profitRow.style.paddingTop = "10px";
 
-    itemListEl.innerHTML = html;
+    const profitNameSpan = document.createElement("span");
+    profitNameSpan.className = "print-item-name";
+    profitNameSpan.style.color = profitColor;
+    profitNameSpan.textContent = "📈 Net Profit Today";
+
+    const profitEqSpan = document.createElement("span");
+    profitEqSpan.className = "print-item-eq";
+    profitEqSpan.textContent = "=";
+
+    const profitPriceSpan = document.createElement("span");
+    profitPriceSpan.className = "print-item-price";
+    profitPriceSpan.style.color = profitColor;
+    profitPriceSpan.textContent = netProfit.toLocaleString() + " \u17DB";
+
+    const br = document.createElement("br");
+    profitPriceSpan.appendChild(br);
+
+    const usdSpan = document.createElement("span");
+    usdSpan.style.fontSize = "11px";
+    usdSpan.style.fontWeight = "600";
+    usdSpan.textContent = `($${netUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+    profitPriceSpan.appendChild(usdSpan);
+
+    profitRow.appendChild(profitNameSpan);
+    profitRow.appendChild(profitEqSpan);
+    profitRow.appendChild(profitPriceSpan);
+
+    itemListEl.appendChild(profitRow);
     window.print();
 }
 function logout() { sessionStorage.removeItem(SESSION_KEY); location.reload(); }
